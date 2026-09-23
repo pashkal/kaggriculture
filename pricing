@@ -1,0 +1,52 @@
+The Price Function
+For each resource the curve is defined by a base price, an anchor throughput T, and an independent shape function + target move for each side of the equilibrium:
+
+price(inv) = base + sign · amp · f(|inv − I0|)
+  sign = +1  if inv < I0   (scarcity → price up)
+  sign = −1  if inv > I0   (glut    → price down)
+  amp  = target · base / f(T)        (derived; not stored)
+  f    ∈ { linear, sq, sqrt, log, log10, hinge }   (log uses ln(1+x), so f(0)=0)
+Floored at $1 and rounded to the nearest dollar.
+
+hinge is the one shape that depends on T rather than on x alone: with u = x / T it evaluates to u + 8 · max(0, u − 1)². Below T it is linear in u; above T the quadratic term takes over and the price climbs steeply. Since f(T) = 1 by construction, target keeps its usual meaning.
+
+T is the production capacity of a single 5×5 field over a 24-day window at optimal watering with no fertilizer (animal totals are pre-discounted by 30% to account for wheat-feed overhead, and allow one day to build the coop or pasture). The 24-day window is a calibration horizon, not the 30-day season length. It is shorter on purpose: the opening days are setup-heavy and yield little.
+
+target says "moving T units past I0 shifts the price by target × base." Picking different f and target on each side lets resources with similar production profiles play very differently strategically — wheat panics on scarcity but absorbs gluts; melon barely reacts to scarcity but crashes hard on overproduction; wool mirrors melon at a smaller scale. Premium resources (base > $100: strawberry, melon, milk, wool) use above_target > 1, so even modest gluts drive them straight to the $1 floor — bundling and timing sales matters more for these than for staples.
+
+Carrot, tomato and egg use hinge on the scarcity side, so their prices stay near base under ordinary demand and rise sharply once demand runs past T. The town shops that consume them are listed in unlocked_shops.
+
+Carrot — hinge at below_target 1.00. Consumed by pet cafes (single-product, so each consumes double) and farmers markets.
+Tomato — hinge at below_target 0.40. Consumed by pizza shops and farmers markets.
+Egg — hinge at below_target 0.40. Consumed by bakeries and brunch spots.
+Tomato and egg keep the below_target of the linear curves they replaced. Because linear's amplitude already normalises to x / T, which is exactly hinge's below-knee branch, their prices from I0 down to I0 − T are unchanged; the curves differ only past the knee.
+
+Resource	Base	I0	T	Below func	Below target	Above func	Above target	P(I0−T)	P(I0+T)	P(I0+2T)
+Wheat	25	10,000	400	sqrt	0.80	log	0.20	$45	$20	$19
+Carrot	35	10,000	450	hinge	1.00	sqrt	0.70	$70	$10	$1
+Tomato	60	10,000	200	hinge	0.40	sqrt	0.60	$84	$24	$9
+Strawberry	120	10,000	100	sqrt	0.70	linear	1.60	$204	$1	$1
+Melon	250	10,000	300	log	0.20	sq	3.60	$300	$1	$1
+Egg	50	10,000	332	hinge	0.40	log	0.20	$70	$40	$39
+Milk	160	10,000	122	sqrt	0.60	linear	1.60	$256	$1	$1
+Wool	200	10,000	105	log	0.20	sq	3.20	$240	$1	$1
+Fertilizer	100	10,000	200	linear	0.40	linear	0.40	$140	$60	$20
+The defaults live in MARKET_PARAMS in kaggriculture.py. Per-resource overrides (sparse: any subset of base, I0, T, below_func, below_target, above_func, above_target) can be supplied at episode creation via env.configuration["marketParams"] without touching code, e.g. {"WOOL": {"above_target": 0.95}}.
+
+
+Town Buildings
+As the season progresses, new shops unlock at regular intervals (every townShopUnlockInterval days, default 3). Each unlock is drawn uniformly at random with replacement from the full shop table, so the same shop can unlock more than once — a season might end up with three bakeries and no yarn store. Once unlocked, a shop stays active for the rest of the game, and unlocking stops after 8 total instances. Total demand grows monotonically as more shops unlock.
+
+Each unlocked shop instance consumes one of every product it demands every townShopSellInterval turns (default 4). So with the default interval, a shop demanding wheat removes 6 wheat from the market per day, and two copies of that shop remove 12. Single-product shops consume 2x.
+
+In addition, the town center consumes one of every product (excluding fertilizer) every townCenterSellInterval turns (default 24, i.e. once per day). This rate is flat for the whole season — it does not ramp.
+
+Shop Type	Increases Demand For
+Bakery	eggs, wheat
+Pizza Shop	milk, tomatoes, wheat
+Brunch Spot	eggs, wheat, strawberries
+Yarn Store	wool (2x)
+Ice Cream Shop	strawberries, milk, wheat
+Pet Cafe	carrots (2x)
+Smoothie Shop	strawberries, milk
+Farmers Market	wheat, carrots, tomatoes, strawberries

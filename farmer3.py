@@ -3,6 +3,7 @@
 
 import random
 from collections import defaultdict
+from typing import Tuple
 
 from market import Market, Sale
 
@@ -59,6 +60,34 @@ def get_direction(loop: list[(int, int)], x: int, y: int):
     print(f"Found ({nx}, {ny})")
     return towards(x, y, nx, ny)
 
+def count_empty_spaces(tiles, day) -> Tuple[int, int, list[Sale]]:
+    empty_spaces = 0
+    total_collected = 0
+    planned_sales = []
+    for i in range(5):
+        for j in range(5):
+            tile = tiles[i][j]
+            if i == 1 and j == 3:
+                continue
+            if tile == None or tile["kind"] == "WEED":
+                empty_spaces += 1
+
+            if tile != None and tile["kind"] == "PLANT" and day - tile["planted_day"] >= AGE_TO_FIRST_YIELD[tile["crop"]]:
+                crop = tile["crop"]
+                if crop in ["WHEAT", "CARROT", "MELON"] and tile["yield_units"] >= CROPS_MAX_YIELD[crop] - 1:
+                    empty_spaces += 1
+                if crop in ["TOMATO", "STRAWBERRY"] and tile["yield_units"] >= CROPS_MAX_YIELD[crop]:
+                    empty_spaces += 1
+            if tile != None and tile["kind"] == "PLANT":
+                total_collected += CROPS_MAX_YIELD[tile["crop"]]
+                planned_sales.append(Sale(
+                    tile["crop"],
+                    CROPS_MAX_YIELD[tile["crop"]],
+                    24 * (tile["planted_day"] + AGE_TO_MAX_YIELD[tile["crop"]] + 1) + 2,
+                ))
+    return (empty_spaces, total_collected, planned_sales)
+
+
 def my_agent(obs):
     player = obs["player"]
     me = obs["farms"][player]
@@ -67,7 +96,6 @@ def my_agent(obs):
     fx, fy = me["farmer"]
     day = obs["day"]
     hour = obs["hour"]
-    money_left = me["money"]
     print(f"========  Day {day + 1}, turn {hour + 1} ============")
 
     market_ops = []
@@ -76,21 +104,11 @@ def my_agent(obs):
     if hour == 0:
         market = Market.from_observation(obs)
         market_ops.extend([["HIRE"], ["HIRE"], ["HIRE"]])
+
         empty_spaces = 0
         planned_sales: list[Sale] = []
-        for i in range(5):
-            for j in range(5):
-                tile = me["tiles"][i][j]
-                if i == 1 and j == 3:
-                    continue
-                if tile == None or tile["kind"] == "WEED" or (tile["kind"] == "PLANT" and day - tile["planted_day"] >= AGE_TO_FIRST_YIELD[tile["crop"]] and tile["yield_units"] >= CROPS_MAX_YIELD[tile["crop"]] - 1):
-                    empty_spaces += 1
-                if tile != None and tile["kind"] == "PLANT":
-                    planned_sales.append(Sale(
-                        tile["crop"],
-                        CROPS_MAX_YIELD[tile["crop"]],
-                        24 * (tile["planted_day"] + AGE_TO_MAX_YIELD[tile["crop"]] + 1) + 2,
-                    ))
+
+        (empty_spaces, _, planned_sales) = count_empty_spaces(me["tiles"], day)
 
         shopping_list = defaultdict(int)
         print(f"{empty_spaces} empty spaces")
@@ -104,7 +122,7 @@ def my_agent(obs):
             best_profit_per_day = -1000
             for crop in AGE_TO_MAX_YIELD.keys():
                 amount = CROPS_MAX_YIELD[crop]
-                sale_day = day + AGE_TO_FIRST_YIELD[crop] + 1
+                sale_day = day + AGE_TO_MAX_YIELD[crop] + 1
                 if sale_day >= 29:
                     continue
                 seed_price = SEED_PRICE[crop]

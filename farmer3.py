@@ -7,6 +7,15 @@ from typing import Tuple
 
 from market import Market, Sale
 
+# LOOPS = [
+#     [(2, 4), (1, 4), (0, 4), (0, 3), (1, 3), (1, 2)], # 0
+#     # [(7, 4), (8, 4), (9, 4), (9, 3), (8, 3), (8, 2)], # 1
+#     # [(5, 4), (5, 3), (5, 2), (6, 2), (6, 1), (5, 1)], # 2
+#     [(4, 4), (4, 3), (4, 2), (3, 2), (3, 1), (4, 1)], # 3
+#     [(3, 4), (3, 3), (2, 3), (2, 2), (2, 1), (1, 1)], # 4
+#     # [(6, 4), (6, 3), (7, 3), (7, 2), (7, 1), (8, 1)], # 5
+# ]
+
 LOOPS = [
     [(1, 4), (0, 4), (0, 3), (0, 2), (0, 1), (0, 0)],
     [(2, 4), (2, 3), (1, 3), (1, 2), (1, 1), (1, 0)],
@@ -64,21 +73,19 @@ def count_empty_spaces(tiles, day) -> Tuple[int, int, list[Sale]]:
     empty_spaces = 0
     total_collected = 0
     planned_sales = []
-    for i in range(5):
-        for j in range(5):
-            tile = tiles[i][j]
-            if i == 1 and j == 3:
-                continue
-            if tile == None or tile["kind"] == "WEED":
+    for loop in LOOPS:
+        for i, j in loop:
+            tile = tiles[j][i]
+            if tile == None or tile == "LOCKED" or tile["kind"] == "WEED":
                 empty_spaces += 1
 
-            if tile != None and tile["kind"] == "PLANT" and day - tile["planted_day"] >= AGE_TO_FIRST_YIELD[tile["crop"]]:
+            if tile != None and tile != "LOCKED" and tile["kind"] == "PLANT" and day - tile["planted_day"] >= AGE_TO_FIRST_YIELD[tile["crop"]]:
                 crop = tile["crop"]
                 if crop in ["WHEAT", "CARROT", "MELON"] and tile["yield_units"] >= CROPS_MAX_YIELD[crop] - 1:
                     empty_spaces += 1
                 if crop in ["TOMATO", "STRAWBERRY"] and tile["yield_units"] >= CROPS_MAX_YIELD[crop]:
                     empty_spaces += 1
-            if tile != None and tile["kind"] == "PLANT":
+            if tile != None and tile != "LOCKED" and tile["kind"] == "PLANT":
                 total_collected += CROPS_MAX_YIELD[tile["crop"]]
                 planned_sales.append(Sale(
                     tile["crop"],
@@ -103,12 +110,18 @@ def my_agent(obs):
     # Hour 0: just shopping and hiring
     if hour == 0:
         market = Market.from_observation(obs)
+        # if day == 0:
+            # market_ops.extend([["BUY_LAND"]])
         market_ops.extend([["HIRE"], ["HIRE"], ["HIRE"]])
 
         empty_spaces = 0
         planned_sales: list[Sale] = []
 
         (empty_spaces, _, planned_sales) = count_empty_spaces(me["tiles"], day)
+
+        for crop in shed.keys():
+            if shed[crop] > 0:
+                planned_sales.append(Sale(crop, shed[crop], day * 24 + hour + 1))
 
         shopping_list = defaultdict(int)
         print(f"{empty_spaces} empty spaces")
@@ -125,6 +138,8 @@ def my_agent(obs):
                 sale_day = day + AGE_TO_MAX_YIELD[crop] + 1
                 if sale_day >= 29:
                     continue
+                # if shopping_list[crop] >= 7:
+                #     continue
                 seed_price = SEED_PRICE[crop]
 
                 copied_market = market.copy()

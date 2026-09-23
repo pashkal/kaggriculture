@@ -1,0 +1,8 @@
+sub*
+.venv
+.ipynb_checkpoints
+
+log*
+replay*
+*.
+__pycache__*
